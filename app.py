@@ -76,6 +76,55 @@ def login():
         return jsonify({'success': False, 'message': '用户名或密码错误'})
 
 
+# ========== 获取当前用户信息 ==========
+@app.route('/api/user/info', methods=['GET'])
+def get_user_info():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'message': '未登录'})
+
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT id, username, nickname, created_at FROM users WHERE id = %s",
+        (user_id,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if user:
+        # 手动格式化时间
+        if user['created_at']:
+            user['created_at'] = user['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+        return jsonify({'success': True, 'user': user})
+    else:
+        return jsonify({'success': False, 'message': '用户不存在'})
+
+# ========== 修改昵称 ==========
+@app.route('/api/user/nickname', methods=['POST'])
+def update_nickname():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'message': '未登录'})
+
+    data = request.get_json()
+    new_nickname = data.get('nickname')
+
+    if not new_nickname or len(new_nickname) > 50:
+        return jsonify({'success': False, 'message': '昵称不能为空且不能超过50个字符'})
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET nickname = %s WHERE id = %s", (new_nickname, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    # 更新 session 中的昵称
+    session['nickname'] = new_nickname
+
+    return jsonify({'success': True, 'message': '昵称修改成功', 'nickname': new_nickname})
+
 # ========== 获取历史消息 ==========
 @app.route('/api/messages', methods=['GET'])
 def get_messages():
